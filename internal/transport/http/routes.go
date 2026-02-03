@@ -13,6 +13,7 @@ func NewRouter(movie_svc service.Movie_Service) *gin.Engine {
 	{
 		api.GET("/movie/", h.GetMovies)
 		api.GET("/movies/search", h.SearchMovieHandler)
+		api.GET("/movies/discover", h.DiscoverMovieHandler)
 	}
 	return router
 }

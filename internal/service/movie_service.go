@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"math"
+	"sync"
 
 	"github.com/h-raju-arch/movie_app_backend/internal/model"
 	movierepo "github.com/h-raju-arch/movie_app_backend/internal/repo/movie_repo"
@@ -13,6 +14,7 @@ import (
 type Movie_Service interface {
 	GetMovieById(ctx context.Context, id, lang string, appendtoresponse []string) (model.MovieResponse, error)
 	SearchMovie(ctx context.Context, searchQuery string, language string, includeAdult bool, primaryYear sql.NullInt64, region sql.NullString, page, pageSize int) (model.SearchResponse, error)
+	Discover(ctx context.Context, params model.DiscoverMoviesParams) (model.DiscoverMoviesResponse, error)
 }
 
 type movie_service struct {
@@ -22,6 +24,8 @@ type movie_service struct {
 func New_Movie_Service(r movierepo.Movie_repo) *movie_service {
 	return &movie_service{repo: r}
 }
+
+//getMoviebyId
 
 func (r movie_service) GetMovieById(ctx context.Context, id, lang string, appendtoresponse []string) (model.MovieResponse, error) {
 	movie, err := r.repo.GetMovieBasebyId(ctx, id, lang)
@@ -33,25 +37,74 @@ func (r movie_service) GetMovieById(ctx context.Context, id, lang string, append
 	var genres []string
 	var companies []string
 	var credits []model.Credits_Response
+	var wg sync.WaitGroup
+
+	type result struct {
+		typ       string
+		genres    []string
+		companies []string
+		credits   []model.Credits_Response
+		err       error
+	}
+
+	resultCh := make(chan result, len(appendtoresponse))
+
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
 
 	for _, append := range appendtoresponse {
-		switch append {
-		case "genre":
-			genres, err = r.repo.FetchGenres(ctx, id)
-			if err != nil {
-				return model.MovieResponse{}, fmt.Errorf("fetch Genres: %w", err)
-			}
-		case "companies":
-			companies, err = r.repo.FetchCompanies(ctx, id)
-			if err != nil {
-				return model.MovieResponse{}, fmt.Errorf("companies Genres: %w", err)
-			}
+		typ := append
+		wg.Add(1)
 
-		case "credits":
-			credits, err = r.repo.FetchCredits(ctx, id)
-			if err != nil {
-				return model.MovieResponse{}, fmt.Errorf("fetch credits: %w", err)
+		go func(typ string) {
+			defer wg.Done()
+			switch typ {
+			case "genres":
+				genres, err = r.repo.FetchGenres(ctx, id)
+				resultCh <- result{genres: genres, typ: typ, err: err}
+				if err != nil {
+					cancel()
+				}
+
+			case "companies":
+				companies, err = r.repo.FetchCompanies(ctx, id)
+				resultCh <- result{companies: companies, typ: typ, err: err}
+
+				if err != nil {
+					cancel()
+				}
+
+			case "credits":
+				credits, err = r.repo.FetchCredits(ctx, id)
+				resultCh <- result{credits: credits, typ: typ, err: err}
+
+				if err != nil {
+					cancel()
+				}
+			default:
+				resultCh <- result{typ: typ}
 			}
+		}(typ)
+
+	}
+
+	go func() {
+		wg.Wait()
+		close(resultCh)
+	}()
+
+	for itr := range resultCh {
+		if itr.err != nil {
+			return movie, itr.err
+		}
+		if itr.typ == "genres" {
+			genres = append(genres, itr.genres...)
+		}
+		if itr.typ == "companies" {
+			companies = append(companies, itr.companies...)
+		}
+		if itr.typ == "credits" {
+			credits = append(credits, itr.credits...)
 		}
 	}
 
@@ -69,7 +122,7 @@ func (r movie_service) GetMovieById(ctx context.Context, id, lang string, append
 		Homepage:     movie.Homepage,
 	}
 
-	if contains(appendtoresponse, "genre") {
+	if contains(appendtoresponse, "genres") {
 		res.Genres = genres
 	}
 	if contains(appendtoresponse, "companies") {
@@ -90,6 +143,8 @@ func contains(list []string, s string) bool {
 	return false
 }
 
+//Search
+
 func (r movie_service) SearchMovie(ctx context.Context, searchQuery string, language string, includeAdult bool, primaryYear sql.NullInt64, region sql.NullString, page, pageSize int) (model.SearchResponse, error) {
 
 	total, items, err := r.repo.SearchMovie(ctx, searchQuery, includeAdult, language, primaryYear, region, page, pageSize)
@@ -109,4 +164,26 @@ func (r movie_service) SearchMovie(ctx context.Context, searchQuery string, lang
 		TotalPages:   totalPages,
 		Results:      items,
 	}, nil
+}
+
+// discover
+func (r movie_service) Discover(ctx context.Context, params model.DiscoverMoviesParams) (model.DiscoverMoviesResponse, error) {
+
+	resp, totalCount, err := r.repo.DiscoverMovies(ctx, params)
+
+	if err != nil {
+		fmt.Println("service", err)
+		return model.DiscoverMoviesResponse{}, fmt.Errorf("service: DisoverMovie: %w", err)
+	}
+
+	result := model.DiscoverMoviesResponse{
+		Results:  resp,
+		Page:     params.Page,
+		PageSize: params.PageSize,
+	}
+
+	if totalCount > 0 {
+		result.TotalPages = int(math.Ceil(float64(result.TotalResults)) / math.Ceil(float64(result.PageSize)))
+	}
+	return result, nil
 }

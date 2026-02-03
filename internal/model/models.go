@@ -43,3 +43,38 @@ type SearchResponse struct {
 	TotalPages   int               `json:"total_pages"`
 	Results      []MovieSearchItem `json:"results"`
 }
+
+type DiscoverMoviesParams struct {
+	WithGenres     []string // UUID strings
+	WithGenresAND  bool     // true if comma (AND), false if OR (pipe) — only used if WithGenres not empty
+	IncludeAdult   bool
+	Language       string
+	ReleaseDateGTE *string // YYYY-MM-DD
+	ReleaseDateLTE *string
+	VoteAvgGTE     *float64
+	VoteAvgLTE     *float64
+	SortBy         string // e.g., "popularity.desc"
+	Page           int
+	PageSize       int
+}
+
+type DiscoverItem struct {
+	ID           uuid.UUID `json:"id"`
+	Title        string    `json:"title"`
+	Overview     *string   `json:"overview,omitempty"`
+	ReleaseDate  *string   `json:"release_date,omitempty"`
+	VoteAverage  *float64  `json:"vote_average,omitempty"`
+	VoteCount    *int      `json:"vote_count,omitempty"`
+	PosterPath   *string   `json:"poster_path,omitempty"`
+	BackdropPath *string   `json:"backdrop_path,omitempty"`
+	Popularity   *float64  `json:"popularity,omitempty"`
+	GenreIDs     []string  `json:"genre_ids,omitempty"`
+}
+
+type DiscoverMoviesResponse struct {
+	Page         int            `json:"page"`
+	PageSize     int            `json:"page_size"`
+	TotalResults int            `json:"total_results"`
+	TotalPages   int            `json:"total_pages"`
+	Results      []DiscoverItem `json:"results"`
+}

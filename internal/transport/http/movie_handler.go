@@ -8,6 +8,8 @@ import (
 	"strings"
 
 	"github.com/gin-gonic/gin"
+	"github.com/gofrs/uuid/v5"
+	"github.com/h-raju-arch/movie_app_backend/internal/model"
 	"github.com/h-raju-arch/movie_app_backend/internal/service"
 )
 
@@ -24,8 +26,14 @@ func (h Movie_handler) GetMovies(c *gin.Context) {
 	ctx := c.Request.Context()
 	id := c.Query("id")
 	if id == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "id query parameter required"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Movie id needed"})
 		return
+	}
+
+	_, err := uuid.FromString(id)
+
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid movie ID"})
 	}
 
 	lang := c.DefaultQuery("lang", "en")
@@ -114,4 +122,74 @@ func (h *Movie_handler) SearchMovieHandler(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 	}
 	c.JSON(http.StatusOK, resp)
+}
+
+/// ----------------Dicover Handler-----------------------
+
+func (h *Movie_handler) DiscoverMovieHandler(c *gin.Context) {
+
+	ctx := c.Request.Context()
+	var params model.DiscoverMoviesParams
+
+	include_adult := c.DefaultQuery("include_adult", "false") == "ture"
+	params.IncludeAdult = include_adult
+
+	language := c.DefaultQuery("language", "en")
+	params.Language = language
+
+	sort_by := c.DefaultQuery("sort_by", "popularity.DESC")
+	params.SortBy = sort_by
+
+	with_genres := c.Query("with_genres")
+	if with_genres != "" {
+		if strings.Contains(with_genres, ",") {
+			params.WithGenres = strings.Split(with_genres, ",")
+			params.WithGenresAND = true
+		} else {
+			params.WithGenres = strings.Split(with_genres, "|")
+			params.WithGenresAND = false
+		}
+
+		for i := range params.WithGenres {
+			params.WithGenres[i] = strings.TrimSpace(params.WithGenres[i])
+		}
+	}
+
+	if v := c.Query("releaseGTE"); v != "" {
+		params.ReleaseDateGTE = &v
+	}
+	if v := c.Query("releaseLTE"); v != "" {
+		params.ReleaseDateLTE = &v
+	}
+
+	if v := c.Query("VoteAvgGTE"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			params.VoteAvgGTE = &f
+		}
+	}
+	if v := c.Query("VoteAvgLTE"); v != "" {
+		if f, err := strconv.ParseFloat(v, 64); err == nil {
+			params.VoteAvgLTE = &f
+		}
+	}
+
+	params.Page, _ = strconv.Atoi(c.DefaultQuery("page", "1"))
+	params.PageSize, _ = strconv.Atoi(c.DefaultQuery("page_size", "20"))
+
+	if params.PageSize > 100 {
+		params.PageSize = 100
+	}
+
+	fmt.Println("inside handler ", params.WithGenres)
+	fmt.Println("inside handler ", params.WithGenresAND)
+
+	res, err := h.svc.Discover(ctx, params)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{
+			"message": err,
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, res)
 }
