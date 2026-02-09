@@ -34,6 +34,7 @@ func (h Movie_handler) GetMovies(c *gin.Context) {
 
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid movie ID"})
+		return
 	}
 
 	lang := c.DefaultQuery("lang", "en")
@@ -52,7 +53,7 @@ func (h Movie_handler) GetMovies(c *gin.Context) {
 	res, err := h.svc.GetMovieById(ctx, id, lang, appends)
 
 	if err != nil {
-		fmt.Println("GetMovies error: %w", err)
+		fmt.Println("GetMovies error:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
@@ -101,7 +102,7 @@ func (h *Movie_handler) SearchMovieHandler(c *gin.Context) {
 		if pi, err := strconv.Atoi(p); err == nil && pi >= 1 {
 			page = pi
 		} else {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page_size (1-100)"})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid page (must be >= 1)"})
 			return
 		}
 	}
@@ -118,8 +119,9 @@ func (h *Movie_handler) SearchMovieHandler(c *gin.Context) {
 
 	resp, err := h.svc.SearchMovie(ctx, q, language, includeAdult, primaryYear, regionNull, page, pageSize)
 	if err != nil {
-		fmt.Println("Error Search Movie handler: %w", err)
+		fmt.Println("Error Search Movie handler:", err)
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
 	}
 	c.JSON(http.StatusOK, resp)
 }
@@ -131,7 +133,7 @@ func (h *Movie_handler) DiscoverMovieHandler(c *gin.Context) {
 	ctx := c.Request.Context()
 	var params model.DiscoverMoviesParams
 
-	include_adult := c.DefaultQuery("include_adult", "false") == "ture"
+	include_adult := c.DefaultQuery("include_adult", "false") == "true"
 	params.IncludeAdult = include_adult
 
 	language := c.DefaultQuery("language", "en")
@@ -179,9 +181,6 @@ func (h *Movie_handler) DiscoverMovieHandler(c *gin.Context) {
 	if params.PageSize > 100 {
 		params.PageSize = 100
 	}
-
-	fmt.Println("inside handler ", params.WithGenres)
-	fmt.Println("inside handler ", params.WithGenresAND)
 
 	res, err := h.svc.Discover(ctx, params)
 	if err != nil {

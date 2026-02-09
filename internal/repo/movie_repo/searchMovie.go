@@ -10,8 +10,6 @@ import (
 )
 
 func (r Movie_repo) SearchMovie(ctx context.Context, queryStr string, adult bool, lang string, primaryYear sql.NullInt64, region sql.NullString, page, pageSize int) (int, []model.MovieSearchItem, error) {
-	fmt.Println("inside repo ", primaryYear)
-
 	if page < 1 {
 		page = 1
 	}
@@ -29,8 +27,6 @@ func (r Movie_repo) SearchMovie(ctx context.Context, queryStr string, adult bool
 	} else {
 		year = nil
 	}
-
-	fmt.Println("interface ", year)
 
 	var regionParam interface{}
 	if region.Valid {
