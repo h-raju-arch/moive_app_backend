@@ -66,8 +66,8 @@ HTTP Request → Handler → Service → Repository → Database
 ## Prerequisites
 
 - Go 1.25 or higher
-- PostgreSQL 14+
-- Make (optional)
+- PostgreSQL 14+(optional if you use docker)
+- golang migrate
 
 ## Local Setup
 
