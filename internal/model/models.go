@@ -23,9 +23,9 @@ type MovieResponse struct {
 }
 
 type Credits_Response struct {
-	Name        string
-	Known_for   string
-	Credit_type string
+	Name        string `json:"name"`
+	Known_for   string `json:"known_for"`
+	Credit_type string `json:"credit_type"`
 }
 
 type MovieSearchItem struct {

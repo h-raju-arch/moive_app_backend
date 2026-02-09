@@ -18,10 +18,10 @@ type Movie_Service interface {
 }
 
 type movie_service struct {
-	repo movierepo.Movie_repo
+	repo movierepo.MovieRepository
 }
 
-func New_Movie_Service(r movierepo.Movie_repo) *movie_service {
+func New_Movie_Service(r movierepo.MovieRepository) *movie_service {
 	return &movie_service{repo: r}
 }
 
@@ -60,25 +60,25 @@ func (r movie_service) GetMovieById(ctx context.Context, id, lang string, append
 			defer wg.Done()
 			switch typ {
 			case "genres":
-				genres, err = r.repo.FetchGenres(ctx, id)
-				resultCh <- result{genres: genres, typ: typ, err: err}
-				if err != nil {
+				g, e := r.repo.FetchGenres(ctx, id)
+				resultCh <- result{genres: g, typ: typ, err: e}
+				if e != nil {
 					cancel()
 				}
 
 			case "companies":
-				companies, err = r.repo.FetchCompanies(ctx, id)
-				resultCh <- result{companies: companies, typ: typ, err: err}
+				c, e := r.repo.FetchCompanies(ctx, id)
+				resultCh <- result{companies: c, typ: typ, err: e}
 
-				if err != nil {
+				if e != nil {
 					cancel()
 				}
 
 			case "credits":
-				credits, err = r.repo.FetchCredits(ctx, id)
-				resultCh <- result{credits: credits, typ: typ, err: err}
+				cr, e := r.repo.FetchCredits(ctx, id)
+				resultCh <- result{credits: cr, typ: typ, err: e}
 
-				if err != nil {
+				if e != nil {
 					cancel()
 				}
 			default:
@@ -98,13 +98,13 @@ func (r movie_service) GetMovieById(ctx context.Context, id, lang string, append
 			return movie, itr.err
 		}
 		if itr.typ == "genres" {
-			genres = append(genres, itr.genres...)
+			genres = itr.genres
 		}
 		if itr.typ == "companies" {
-			companies = append(companies, itr.companies...)
+			companies = itr.companies
 		}
 		if itr.typ == "credits" {
-			credits = append(credits, itr.credits...)
+			credits = itr.credits
 		}
 	}
 
@@ -172,18 +172,18 @@ func (r movie_service) Discover(ctx context.Context, params model.DiscoverMovies
 	resp, totalCount, err := r.repo.DiscoverMovies(ctx, params)
 
 	if err != nil {
-		fmt.Println("service", err)
-		return model.DiscoverMoviesResponse{}, fmt.Errorf("service: DisoverMovie: %w", err)
+		return model.DiscoverMoviesResponse{}, fmt.Errorf("service: DiscoverMovie: %w", err)
 	}
 
 	result := model.DiscoverMoviesResponse{
-		Results:  resp,
-		Page:     params.Page,
-		PageSize: params.PageSize,
+		Results:      resp,
+		Page:         params.Page,
+		PageSize:     params.PageSize,
+		TotalResults: totalCount,
 	}
 
 	if totalCount > 0 {
-		result.TotalPages = int(math.Ceil(float64(result.TotalResults)) / math.Ceil(float64(result.PageSize)))
+		result.TotalPages = int(math.Ceil(float64(totalCount) / float64(params.PageSize)))
 	}
 	return result, nil
 }
